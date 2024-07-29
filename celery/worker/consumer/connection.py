@@ -18,14 +18,19 @@ class Connection(bootsteps.StartStopStep):
         super().__init__(c, **kwargs)
 
     def start(self, c):
-        c.connection = c.connect()
-        info('Connected to %s', c.connection.as_uri())
+        try:
+            c.connection = c.connect()
+            info('Connected to %s', c.connection.as_uri())
+        except Exception as e:
+            logger.error('Failed to connect: %s', str(e))
+            raise
 
     def shutdown(self, c):
         # We must set self.connection to None here, so
         # that the green pidbox thread exits.
         connection, c.connection = c.connection, None
         if connection:
+            info('Closing consumer channel...')
             ignore_errors(connection, connection.close)
 
     def info(self, c):

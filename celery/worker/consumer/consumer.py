@@ -379,6 +379,7 @@ class Consumer:
         try:
             self.connection.collect()
         except Exception:  # pylint: disable=broad-except
+            error('Error collecting connection: %r', exc, exc_info=True)
             pass
 
         if self.app.conf.worker_cancel_long_running_tasks_on_connection_loss:
@@ -448,18 +449,42 @@ class Consumer:
         # They can't be acked anyway, as a delivery tag is specific
         # to the current channel.
         if self.controller and self.controller.semaphore:
-            self.controller.semaphore.clear()
+            try:
+                self.controller.semaphore.clear()
+            except Exception as exc:
+                error('Error clearing semaphore: %r', exc, exc_info=True)
+                raise("Error clearing semaphore in Consumer.on_close")
+
         if self.timer:
-            self.timer.clear()
+            try:
+                self.timer.clear()
+            except Exception as exc:
+                error('Error clearing timer: %r', exc, exc_info=True)
+                raise("Error clearing timer in Consumer.on_close")
+            
         for bucket in self.task_buckets.values():
             if bucket:
-                bucket.clear_pending()
+                try:
+                    bucket.clear_pending()
+                except Exception as exc:
+                    error('Error clearing bucket: %r', exc, exc_info=True)
+                    raise("Error clearing bucket in Consumer.on_close")
+    
         for request_id in reserved_requests:
             if request_id in requests:
                 del requests[request_id]
-        reserved_requests.clear()
+        try:
+            reserved_requests.clear()
+        except Exception as exc:
+            error('Error clearing reserved requests: %r', exc, exc_info=True)
+            raise("Error clearing reserved requests in Consumer.on_close")
+
         if self.pool and self.pool.flush:
-            self.pool.flush()
+            try:
+                self.pool.flush()
+            except Exception as exc:
+                error('Error flushing pool: %r', exc, exc_info=True)
+                raise("Error flushing pool in Consumer.on_close")
 
     def connect(self):
         """Establish the broker connection used for consuming tasks.
